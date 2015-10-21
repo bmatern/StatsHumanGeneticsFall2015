@@ -23,13 +23,14 @@ for(i in 1:1000)
 sum(pval<.05)/1000
 
 # 2)
+
 # Foulkes 4.2
 #virco <- read.csv("http://people.umass.edu/foulkes/asg/data/Virco_data.csv", header=T, sep=",")
 fms <- read.delim("http://people.umass.edu/foulkes/asg/data/FMS_data.txt", header=T, sep="\t")
 
 # Example 4.1 (Bonferroni adjustment):
 #attach(virco)
-attach(fms)
+#attach(fms)
 #columns <- colnames(fms)
 #sortCols <- sort(columns)
 #columns
@@ -73,14 +74,12 @@ PrMut[is.na(PrMut)] <- FALSE
 # PrMut[is.na(PrMut)] 
 
 
-
-
 PrMut
 NObs <- dim(fms)[1]
 PrMutSub <- data.frame(PrMut[ , apply(PrMut,2,sum) > NObs*.05])
 PrMutSub
 #Trait <- IDV.Fold - NFV.Fold
-Trait <- HDL_C
+Trait <- fms$HDL_C
 Trait
 TtestP <- function(Geno){return(t.test(Trait[Geno==1], Trait[Geno==0], na.rm=T)$"p.value")}
 
@@ -111,7 +110,7 @@ sort(p.adjust(Pvec, method="BH"))
 
 
 
-detach(fms)
+#detach(fms)
 
 
 
@@ -140,6 +139,7 @@ detach(virco)
 
 
 # 3)
+
 # Foulkes 4.3
 fms <- read.delim("http://people.umass.edu/foulkes/asg/data/FMS_data.txt", header=T, sep="\t")
 #attach(fms)
@@ -176,7 +176,7 @@ TukeyHSD(aov(femaleTrait~femaleData$resistin_c180g))
 
 #detach(fms)
 
-# 4
+# 4 )
 # foulkes 4.6
 # Example 4.6: Free step-down resampling adjustment;
 fms <- read.delim("http://people.umass.edu/foulkes/asg/data/FMS_data.txt", header=T, sep="\t")
@@ -219,10 +219,22 @@ Qmat <- t(apply(TestStatResamp, 1, cummax))
 Padj <- apply(t(matrix(rep(Tobs,M), NSnps)) < Qmat, 2, mean)
 Padj
 
-# 5) 
+# 5 ) 
+
+
 # Effective number of tests
 fms <- read.delim("http://people.umass.edu/foulkes/asg/data/FMS_data.txt", header=T, sep="\t")
-attach(fms)
+#attach(fms)
+#Actn3Bin <- data.frame(fms$actn3_r577x!="TT", fms$actn3_rs540874!="AA",
+#                       fms$actn3_rs1815739!="TT", 
+#                      fms$actn3_1671064!="GG")
+Mod <- summary(lm(fms$NDRM.CH~.,data=Actn3Bin))
+Mod
+TestStatObs <- Mod$coefficients[-1,3]
+Tobs <- as.vector(sort(abs(TestStatObs)))
+MissDat <- apply(is.na(Actn3Bin),1,any) | is.na(fms$NDRM.CH)
+Actn3BinC <- Actn3Bin[!MissDat,]
+
 corActn3 <- cor(Actn3BinC)
 eigenValActn3 <- eigen(corActn3)$values
 mEff <- 1+(4-1)*(1-var(eigenValActn3)/4)
@@ -230,3 +242,113 @@ mEff
 0.05/4
 0.05/mEff
 
+#For real this time 
+hgdp <- read.delim("http://people.umass.edu/foulkes/asg/data/HGDP_AKT1.txt",  header=T, sep="\t")
+colnames(hgdp)
+data<-rnorm(1064)
+
+Actn3Bin <- data.frame(hgdp$AKT1.C0756A!="CC", 
+                       hgdp$AKT1.C6024T!="CC",
+                       hgdp$AKT1.G2347T!="GG", 
+                       hgdp$AKT1.G2375A!="GG")
+
+Mod <- summary(lm(data~.,data=Actn3Bin))
+Mod
+TestStatObs <- Mod$coefficients[-1,3]
+Tobs <- as.vector(sort(abs(TestStatObs)))
+MissDat <- apply(is.na(Actn3Bin),1,any) 
+Actn3BinC <- Actn3Bin[!MissDat,]
+
+corActn3 <- cor(Actn3BinC)
+eigenValActn3 <- eigen(corActn3)$values
+mEff <- 1+(4-1)*(1-var(eigenValActn3)/4)
+mEff
+0.05/4
+0.05/mEff
+
+
+
+# 6 )
+
+# Independently simulate binary indicator variables for 
+# 2000 markers for 100 subjects with success probability 0.5. 
+simMatrix<-matrix(NA, 2000, 100)
+for(j in 1:100)
+{
+  for(i in 1:2000)
+  {
+    #probability  = .5
+    simMatrix[i,j]<-(rnorm(1) > 0)
+  }
+}
+
+#now sim matrix contains a 2000x100 matrix of booleans
+
+outcomes<-rep(0,100)
+
+
+# for each subject simulate a normally distributed outcome variable that depends on 
+# the first 10 markers with regression coefficients of 10,9,...,1 and has standard deviation 1.
+
+# what?  how to i enforce the standard deviation? rnorm?
+# Am i sampling from a normal distribution?  
+for(j in 1:100)
+{
+  outcomes[j] = 10 * simMatrix[1,j] + 
+    9 * simMatrix[2,j] +
+    8 * simMatrix[3,j] +
+    7 * simMatrix[4,j] +
+    6 * simMatrix[5,j] +
+    5 * simMatrix[6,j] +
+    4 * simMatrix[7,j] +
+    3 * simMatrix[8,j] +
+    2 * simMatrix[9,j] +
+    1 * simMatrix[10,j]
+}
+
+# For each marker, use a 2 sample t-test with equal variance 
+# to test if the marker is associated with the trait.
+pvalues = rep(0,2000)
+for(i in 1:2000)
+{
+  markerTrait <- simMatrix[i,]
+  #g1<-data[whp, ALL_bcrneg$mol.biol=="BCR/ABL"]
+  #g2<-data[whp,ALL_bcrneg$mol.biol=="NEG"]
+  summt<-t.test(markerTrait, outcomes)
+  tobs<-summt$p.value
+  pvalues[i]<-tobs
+  
+}
+pvalues
+hist(pvalues)
+
+qvalues <- rep(0,2000)
+#install.packages("qvalue")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("qvalue")
+
+
+library(qvalue)
+pvalues
+qvalues <- sort(qvalue(pvalues, lambda=0)$qvalues)
+qvalues
+sort(qvalue(pvalues, pi0.method="bootstrap")$qvalues)
+qvalue(pvalues, pi0.method="bootstrap")$pi0
+# 7
+
+set.seed(1)
+sim1 <- rnorm(100, mean=0, sd=1)
+sim2 <- rnorm(50, mean=3, sd=.5)
+combinedSim <- c(sim1, sim2)
+
+hist(combinedSim)
+
+mean(combinedSim)-qt(.975, df=74)*sqrt(var(combinedSim)/75)
+mean(combinedSim)+qt(.975, df=74)*sqrt(var(combinedSim)/75)
+#sim contains the bootstrap values/
+sim <- rep(NA, 1000)
+for(i in 1:1000){
+  y2 <- sample(combinedSim, replace=TRUE)
+  sim[i] <- mean(y2) 
+}
+quantile(sim, c(.025, .975))
